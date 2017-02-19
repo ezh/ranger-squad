@@ -18,9 +18,6 @@ from ranger.container.file import File
 
 from logging import getLogger
 
-import time
-import remote_pdb
-
 try:
     import thread
 except ImportError:
