@@ -88,19 +88,35 @@ class SquadClient:
                 LOG.debug("Unable to read data from squad" + str(ex))
 
 
+    def ranger_bookmark_get(self, pid, env, args):
+        try:
+            bookmarks = dict((k,File(v)) for (k,v) in args[0].items() if os.path.exists(v))
+            self.fm.bookmarks._set_dict(bookmarks, original=bookmarks)
+            self.fm.ui.redraw_main_column()
+        except Exception as ex:
+            LOG.debug("""Unable to process "bookmark" command from squad: """ + str(ex))
+
+
+    def ranger_bookmark_send(self):
+        try:
+            self.leader_report(self.topic, self.pid, 0, 'bookmark', [dict((k,v.path) for (k,v) in self.fm.bookmarks.dct.items())])
+        except Exception as ex:
+            LOG.debug("""Unable to send "bookmark" report to squad: """ + str(ex))
+
+
     def ranger_copy_get(self, pid, env, args):
         try:
             self.fm.copy_buffer = set(File(g) for g in args if os.path.exists(g))
             self.fm.ui.redraw_main_column()
         except Exception as ex:
-            LOG.debug("Unable to process copy data from squad" + str(ex))
+            LOG.debug("""Unable to process "copy" command from squad: """ + str(ex))
 
 
     def ranger_copy_send(self):
         try:
             self.leader_report(self.topic, self.pid, 0, 'copy', [fobj.path for fobj in self.fm.copy_buffer])
         except Exception as ex:
-            LOG.debug("Unable to send copy data to squad" + str(ex))
+            LOG.debug("""Unable to send "copy" report to squad: """ + str(ex))
 
 
     def ranger_tag_get(self, pid, env, args):
@@ -108,14 +124,14 @@ class SquadClient:
             self.fm.tags.tags = args[0]
             self.fm.ui.redraw_main_column()
         except Exception as ex:
-            LOG.debug("Unable to process copy data from squad" + str(ex))
+            LOG.debug("""Unable to process "tag" command from squad: """ + str(ex))
 
 
     def ranger_tag_send(self):
         try:
             self.leader_report(self.topic, self.pid, 0, 'tag', [self.fm.tags.tags])
         except Exception as ex:
-            LOG.debug("Unable to send copy data to squad" + str(ex))
+            LOG.debug("""Unable to send "tag" report to squad: """ + str(ex))
 
 
     def set_socket_option(self, option, value):
@@ -158,6 +174,7 @@ def copy_SQUAD_cmd(mode='set', narg=None, dirarg=None):
     client.ranger_copy_send()
     return result
 
+
 # Overwrite the old one
 if 'copy' in ranger.fm.commands.commands:
     LOG.debug("Share copy command")
@@ -185,6 +202,7 @@ def tag_SQUAD_cmd(paths=None, value=None, movedown=None, tag=None):
     client.ranger_tag_send()
     return result
 
+
 # Overwrite the old one
 if 'tag_toggle' in ranger.fm.commands.commands:
     LOG.debug("Share tag command")
@@ -192,3 +210,43 @@ if 'tag_toggle' in ranger.fm.commands.commands:
     client.command['tag'] = client.ranger_tag_get
     ranger.fm.commands.commands['tag_toggle'] = rc._command_init(rc.command_function_factory(tag_SQUAD_cmd))
     ra.Actions.tag_toggle = tag_SQUAD
+
+
+def set_bookmark_SQUAD(self, key, val=None):
+    """Set the bookmark with the name <key> to the current directory"""
+    result = client.original['set_bookmark'](self, key, val)
+    client.ranger_bookmark_send()
+    return result
+
+
+def set_bookmark_SQUAD_cmd(key, val=None):
+    """Set the bookmark with the name <key> to the current directory"""
+    result = client.original['set_bookmark'](client.fm, key, val)
+    client.ranger_bookmark_send()
+    return result
+
+
+def unset_bookmark_SQUAD(self, key):
+    """Delete the bookmark with the name <key>"""
+    result = client.original['unset_bookmark'](self, key)
+    client.ranger_bookmark_send()
+    return result
+
+
+def unset_bookmark_SQUAD_cmd(key):
+    """Delete the bookmark with the name <key>"""
+    result = client.original['unset_bookmark'](client.fm, key)
+    client.ranger_bookmark_send()
+    return result
+
+# Overwrite the old one
+if ('set_bookmark' in ranger.fm.commands.commands and
+    'unset_bookmark' in ranger.fm.commands.commands):
+    LOG.debug("Share bookmark command")
+    client.original['set_bookmark'] = ra.Actions.set_bookmark
+    client.original['unset_bookmark'] = ra.Actions.unset_bookmark
+    client.command['bookmark'] = client.ranger_bookmark_get
+    ranger.fm.commands.commands['set_bookmark'] = rc._command_init(rc.command_function_factory(set_bookmark_SQUAD_cmd))
+    ra.Actions.set_bookmark = set_bookmark_SQUAD
+    ranger.fm.commands.commands['unset_bookmark'] = rc._command_init(rc.command_function_factory(unset_bookmark_SQUAD_cmd))
+    ra.Actions.unset_bookmark = unset_bookmark_SQUAD
