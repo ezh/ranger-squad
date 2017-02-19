@@ -37,31 +37,32 @@ class SquadLeader:
 
     def run(self):
         logging.info("Starting leader event loop")
-        p = zmq.Poller()
-        p.register(server.socket_report, zmq.POLLIN)
-        p.register(server.socket_command, zmq.POLLIN)
         while True:
             try:
                 # Wait for next request from client
-                time.sleep(1)
                 logging.info("Waiting for squad reports")
-                data = self.socket_report.recv()
+                topic, data = self.socket_report.recv_multipart()
                 l = pickle.loads(data)
-                logging.info("""Received command "%s" from ranger %s""" % (l[0], l[1]))
-                self.socket_command.send_multipart([self.topic, data])
+                from_pid = l[0]
+                to_pid = l[1]
+                command = l[2]
+                logging.info("""Received command "%s[%s]" from ranger %s to %s""" %
+                             (command, topic.decode("ascii","ignore"), from_pid, to_pid))
+                if to_pid >= 0:
+                    self.socket_command.send_multipart([topic, data])
             except KeyboardInterrupt as e:
                 raise e
             except Exception as e:
-                print("Got an exception, closing and restarting:", e)
+                logging.warn("Got an exception, closing and restarting:", e)
                 try:
                     self.socket_report.close()
                     self.socket_command.close()
                 except:
-                    print("Exception closing sockets, ignoring")
+                    logging.error("Exception closing sockets, ignoring")
                 try:
                     self.context.term()
                 except:
-                    print("Exception closing context, ignoring")
+                    logging.error("Exception closing context, ignoring")
                 time.sleep(1)
                 self.context = zmq.Context()
                 self.socket_report = self.context.socket(zmq.DEALER)
